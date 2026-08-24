@@ -6,6 +6,7 @@ pipeline {
     environment {
         DOCKER_IMAGE = "deepaksaini98/jenkins-cicd-app"
         AWS_REGION   = "ap-east-1"
+        AWS_DEFAULT_REGION = "ap-east-1"
         AMI_ID       = "ami-0332d564d76dbd8d6"
     }
 
@@ -20,10 +21,10 @@ pipeline {
                     )
                 ]) {
                     sh '''
-                        # Build image using default Dockerfile
+                        # Build image using root Dockerfile
                         docker build -t $DOCKER_IMAGE:$BUILD_NUMBER -t $DOCKER_IMAGE:latest .
                         
-                        # Login and Push
+                        # Login and Push to Docker Hub
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                         docker push $DOCKER_IMAGE:$BUILD_NUMBER
                         docker push $DOCKER_IMAGE:latest
@@ -32,7 +33,7 @@ pipeline {
             }
         }
 
- stage('Deploy with Terraform') {
+        stage('Deploy with Terraform') {
             steps {
                 withCredentials([
                     usernamePassword(
@@ -61,4 +62,3 @@ pipeline {
         }
     }
 }
-    
