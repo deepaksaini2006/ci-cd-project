@@ -34,6 +34,7 @@ resource "aws_instance" "app_server" {
 
   ami                    = var.ami_id
   instance_type          = var.instance_type
+  vpc_security_group_ids = ["sg-012dd3c6097a1972b"]
   vpc_security_group_ids = [aws_security_group.app_sg.id]
 
   user_data = templatefile("${path.module}/userdata.sh", {
