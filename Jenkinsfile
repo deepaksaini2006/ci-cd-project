@@ -32,10 +32,14 @@ pipeline {
             }
         }
 
-        stage('Deploy with Terraform') {
+ stage('Deploy with Terraform') {
             steps {
                 withCredentials([
-                    [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']
+                    usernamePassword(
+                        credentialsId: 'aws-credentials',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )
                 ]) {
                     dir('terraform') {
                         sh '''
