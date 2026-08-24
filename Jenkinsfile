@@ -1,5 +1,4 @@
 pipeline {
-
     agent {
         label 'amazon-worker'
     }
@@ -11,23 +10,7 @@ pipeline {
     }
 
     stages {
-
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                sh '''
-                    docker build -f dockerfile -t $DOCKER_IMAGE:$BUILD_NUMBER .
-                    docker tag $DOCKER_IMAGE:$BUILD_NUMBER $DOCKER_IMAGE:latest
-                '''
-            }
-        }
-
-        stage('Push Docker Image') {
+        stage('Build & Push Docker Image') {
             steps {
                 withCredentials([
                     usernamePassword(
@@ -37,6 +20,10 @@ pipeline {
                     )
                 ]) {
                     sh '''
+                        # Build image using default Dockerfile
+                        docker build -t $DOCKER_IMAGE:$BUILD_NUMBER -t $DOCKER_IMAGE:latest .
+                        
+                        # Login and Push
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                         docker push $DOCKER_IMAGE:$BUILD_NUMBER
                         docker push $DOCKER_IMAGE:latest
@@ -45,67 +32,29 @@ pipeline {
             }
         }
 
-        stage('Terraform Init') {
+        stage('Deploy with Terraform') {
             steps {
                 withCredentials([
-                    [$class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-credentials']
-                ]) {
-                    dir('terraform') {
-                        sh 'terraform init'
-                    }
-                }
-            }
-        }
-
-        stage('Terraform Plan') {
-            steps {
-                withCredentials([
-                    [$class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-credentials']
+                    [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']
                 ]) {
                     dir('terraform') {
                         sh '''
-                            terraform plan \
-                            -var="ami_id=$AMI_ID" \
-                            -var="docker_image=$DOCKER_IMAGE:latest"
-                        '''
-                    }
-                }
-            }
-        }
-
-        stage('Create EC2 and Deploy') {
-            steps {
-                withCredentials([
-                    [$class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-credentials']
-                ]) {
-                    dir('terraform') {
-                        sh '''
+                            terraform init
                             terraform apply -auto-approve \
-                            -var="ami_id=$AMI_ID" \
-                            -var="docker_image=$DOCKER_IMAGE:latest"
+                                -var="ami_id=$AMI_ID" \
+                                -var="docker_image=$DOCKER_IMAGE:latest"
                         '''
-                    }
-                }
-            }
-        }
-
-        stage('Get Application URL') {
-            steps {
-                dir('terraform') {
-                    script {
-                        def url = sh(
-                            script: 'terraform output -raw application_url',
-                            returnStdout: true
-                        ).trim()
-
-                        echo "Application deployed successfully!"
-                        echo "Application URL: ${url}"
+                        script {
+                            def appUrl = sh(
+                                script: 'terraform output -raw application_url',
+                                returnStdout: true
+                            ).trim()
+                            echo "Application deployed successfully at: ${appUrl}"
+                        }
                     }
                 }
             }
         }
     }
 }
+    
